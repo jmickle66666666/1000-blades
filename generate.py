@@ -3,10 +3,10 @@ import os
 import random
 import colorsys
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 def calculate_possibilities():
-    return (len(grips) * palettes.size[0]) * (len(pommels) * palettes.size[0]) * (len(crossguards) * palettes.size[0]) * (len(blades) * palettes.size[0])
+    return (len(grips) * num_palettes) * (len(pommels) * num_palettes) * (len(crossguards) * num_palettes) * (len(blades) * num_palettes)
 
 def generate_sword_image():
     """Generates a sword image from pieces
@@ -19,7 +19,7 @@ def generate_sword_image():
     grip = open_with_palette(random.choice(grips), random.randint(0, palettes.size[1]))
     pommel = open_with_palette(random.choice(pommels), random.randint(0, palettes.size[1]))
     crossguard = open_with_palette(random.choice(crossguards), random.randint(0, palettes.size[1]))
-    blade = open_with_palette(random.choice(blades), random.randint(0, palettes.size[1]))
+    blade = generate_blade()
 
     composite = Image.new('RGBA', (32, 32))
 
@@ -78,25 +78,131 @@ def get_value_index(color):
                 palette_cache[color] = (i, j)
                 return (i, j)
 
-    print("Can't find color in palettes, figuring by value")
+    # print("Can't find color in palettes, figuring by value")
 
-    palette_values = (0.0, 0.4, 0.55, 0.75, 0.95)
+    palette_values = (0.4, 0.55, 0.75, 0.95, 1.0)
     v = colorsys.rgb_to_hsv(color[0]/255.0, color[1]/255.0, color[2]/255.0)
     output = 0
-    while (v > palette_values[output]):
+    while (v[2] > palette_values[output]):
         output += 1
 
     palette_cache[color] = (output, 0)
     return (output, 0)
+
+def generate_palette():
+    """Returns a new generated palette range
+
+    Returns:
+        A PIL Image object.
+    """
+    basehue = random.random()
+    modhue = basehue + ((random.random() - 0.5) * 0.2)
+    modhue = max(0.0, min(modhue, 1.0))
+    hueshift = 0.75
+    hues = []
+    hues.append(basehue)
+    hues.append(lerp(basehue, modhue, hueshift))
+    hues.append(modhue)
+    hues.append(lerp(basehue, modhue, hueshift))
+    hues.append(basehue)
+
+    basesat = random.random()
+    satshift = 0.95 - random.random()*0.2
+    sats = []
+    for i in range(5):
+        sats.append(basesat + (random.random() * 0.2))
+        basesat *= satshift
+
+    baseval = (random.random() * 0.2) + 0.1
+    valshift = 0.1 + random.random() * 0.4
+    vals = []
+    for i in range(5):
+        vals.append(baseval)
+        baseval = lerp(baseval, 1.0, valshift)
+
+    output = Image.new("RGBA", (5, 1))
+    for i in range(5):
+        col = colorsys.hsv_to_rgb(hues[i], sats[i], vals[i])
+        col = (int(col[0] * 255.0), int(col[1] * 255.0), int(col[2] * 255.0))
+        output.putpixel((i, 0), col)
+
+    return output
+
+
+def lerp(a, b, t):
+    return (b * t) + (a * (1.0 - t))
+
+
+def generate_blade():
+    """Generates a new blade sprite
+
+    Returns:
+        A 32x32 PIL Image object.
+    """
+
+    palette = generate_palette()
+    output = Image.new("RGBA", (32, 32), (0,0,0,0))
+    draw = ImageDraw.Draw(output)
+    max_length = 19
+
+    # Create shape information
+    length = random.randint(10, max_length)
+    highlight_length = length * random.random()
+    sections = random.randint(2, 4)
+    widths = []
+    for i in range(sections):
+        widths.append(random.randint(2,3))
+
+    # Create lines defining the shape
+    left_line = []
+    right_line = []
+
+    for i in range(sections):
+        basepos = max_length - ((i/sections) * length)
+        left_line.append((basepos - widths[i],basepos + widths[i]))
+        right_line.append((basepos + widths[i],basepos - widths[i]))
+
+    left_line.append((max_length-length,max_length-length))
+    right_line.append((max_length-length,max_length-length))
+
+    # Fill the base color for the blade
+    left_polygon = []
+    left_polygon.extend(left_line)
+    left_polygon.append((max_length,max_length))
+
+    right_polygon = []
+    right_polygon.extend(right_line)
+    right_polygon.append((max_length,max_length))
+
+    draw.polygon(left_polygon, palette.getpixel((1,0)))
+    draw.polygon(right_polygon, palette.getpixel((2,0)))
+
+    # Draw the middle ridge
+    draw.line([(max_length,max_length), (max_length - length, max_length - length)], palette.getpixel((3,0)))
+    draw.line([(max_length,max_length), (max_length - highlight_length, max_length - highlight_length)], palette.getpixel((4,0)))
+
+    # Draw the outline
+    draw.line(left_line, palette.getpixel((0,0)))
+    draw.line(right_line, palette.getpixel((0,0)))
+
+    del draw
+    return output
 
 
 if __name__ == "__main__":
     print("Generating blades...")
 
     # Set the random seed to have deterministic results.
-    random.seed("teddybear")
+    #random.seed("teddybear")
 
-    palettes = Image.open("./images/palettes.png")
+    # palettes = Image.open("./images/palettes.png")
+
+    num_palettes = 32
+    palettes = Image.new("RGBA", (5, num_palettes))
+    for i in range(num_palettes):
+        palettes.paste(generate_palette(), (0, i))
+    palettes.save("./images/genpalette.png")
+
     palette_cache = {}
 
     # Load up individual pieces
@@ -107,7 +213,7 @@ if __name__ == "__main__":
 
     print("Possibility space: {}".format(calculate_possibilities()))
 
-    sheet_size = 32 * 16, 32 * 64
+    sheet_size = 32 * 4, 32 * 4
     sprite_sheet = Image.new('RGBA', sheet_size)
 
     # Build the sprite sheet
