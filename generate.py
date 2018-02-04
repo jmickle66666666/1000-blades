@@ -89,7 +89,7 @@ def get_value_index(color):
     palette_cache[color] = (output, 0)
     return (output, 0)
 
-def generate_palette():
+def generate_palette(satmod = 1.0, valmod = 1.0):
     """Returns a new generated palette range
 
     Returns:
@@ -122,7 +122,7 @@ def generate_palette():
 
     output = Image.new("RGBA", (5, 1))
     for i in range(5):
-        col = colorsys.hsv_to_rgb(hues[i], sats[i], vals[i])
+        col = colorsys.hsv_to_rgb(hues[i], sats[i] * satmod, vals[i] * valmod)
         col = (int(col[0] * 255.0), int(col[1] * 255.0), int(col[2] * 255.0))
         output.putpixel((i, 0), col)
 
@@ -140,7 +140,8 @@ def generate_blade():
         A 32x32 PIL Image object.
     """
 
-    palette = generate_palette()
+    palette = generate_palette(random.random() * 0.2)
+    if (random.random() < 0.1): palette = generate_palette(2.0, 1.2)
     output = Image.new("RGBA", (32, 32), (0,0,0,0))
     draw = ImageDraw.Draw(output)
     max_length = 19
@@ -213,7 +214,7 @@ if __name__ == "__main__":
 
     print("Possibility space: {}".format(calculate_possibilities()))
 
-    sheet_size = 32 * 4, 32 * 4
+    sheet_size = 32 * 8, 32 * 4
     sprite_sheet = Image.new('RGBA', sheet_size)
 
     # Build the sprite sheet
